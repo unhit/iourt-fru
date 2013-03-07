@@ -1,4 +1,4 @@
 iourt-fru
 =========
 
-ioUrT server source code with common patches and author modifications
+ioUrT - Urban Terror engine source code with common patches and author modifications
