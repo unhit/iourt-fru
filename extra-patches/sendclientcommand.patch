@@ -1,0 +1,150 @@
+Index: code/server/sv_ccmds.c
+===================================================================
+--- code/server/sv_ccmds.c	(revision 467)
++++ code/server/sv_ccmds.c	(working copy)
+@@ -763,6 +763,58 @@
+ // separator for forcecvar.patch and sendclientcommand.patch
+ ////////////////////////////////////////////////////////////
+ 
++/*
++==================
++SV_SendClientCommand_f
++
++Send a reliable command to a specific client
++==================
++*/
++static void SV_SendClientCommand_f( void ) {
++	client_t	*cl;
++	int		i;
++	char		*cmd;
++
++	// make sure server is running
++	if ( !com_sv_running->integer ) {
++		Com_Printf( "Server is not running.\n" );
++		return;
++	}
++
++	if ( Cmd_Argc() < 3 || strlen(Cmd_Argv(2)) == 0 ) {
++		Com_Printf ("Usage: sendclientcommand <player name> <command>\nPlayer may be 'all' or 'allbots'\n");
++		return;
++	}
++
++	cl = SV_GetPlayerByHandle();
++	cmd = Cmd_ArgsFromRaw(2);
++
++	if ( !cl ) {
++		if ( !Q_stricmp(Cmd_Argv(1), "all") ) {
++			for ( i=0, cl=svs.clients ; i < sv_maxclients->integer ; i++,cl++ ) {
++				if ( !cl->state ) {
++					continue;
++				}
++				SV_SendServerCommand(cl, "%s", cmd);
++			}
++		}
++		else if ( !Q_stricmp(Cmd_Argv(1), "allbots") ) {
++			for ( i=0, cl=svs.clients ; i < sv_maxclients->integer ; i++,cl++ ) {
++				if ( !cl->state ) {
++					continue;
++				}
++				if( cl->netchan.remoteAddress.type != NA_BOT ) {
++					continue;
++				}
++				SV_SendServerCommand(cl, "%s", cmd);
++			}
++		}
++		return;
++	}
++
++	SV_SendServerCommand(cl, "%s", cmd);
++}
++
+ //===========================================================
+ 
+ /*
+@@ -804,7 +856,7 @@
+ 	////////////////////////////////////////////////////////////
+ 	// separator for forcecvar.patch and sendclientcommand.patch
+ 	////////////////////////////////////////////////////////////
+-
++	Cmd_AddCommand ("sendclientcommand", SV_SendClientCommand_f);
+ }
+ 
+ /*
+Index: code/qcommon/cmd.c
+===================================================================
+--- code/qcommon/cmd.c	(revision 467)
++++ code/qcommon/cmd.c	(working copy)
+@@ -403,6 +403,61 @@
+ 
+ /*
+ ============
++Cmd_ArgsFromRaw
++
++============
++*/
++char *Cmd_ArgsFromRaw( int arg ) {
++	static	char	cmd_args_raw[BIG_INFO_STRING];
++	char		*remaining_text;
++	int		argc = 0;
++        qboolean	ignoreQuotes = qfalse;
++
++	cmd_args_raw[0] = 0;
++	if (arg < 0) { arg = 0; }
++	remaining_text = cmd_cmd;
++
++	while (qtrue) {
++		while (qtrue) {
++			while (*remaining_text && *remaining_text <= ' ') { remaining_text++; }
++			if (!*remaining_text) { return cmd_args_raw; }
++			if (remaining_text[0] == '/' && remaining_text[1] == '/') {
++				return cmd_args_raw; }
++			if (remaining_text[0] == '/' && remaining_text[1] == '*') {
++				while (*remaining_text &&
++					(remaining_text[0] != '*' || remaining_text[1] != '/')) {
++					remaining_text++;
++				}
++				if (!*remaining_text) { return cmd_args_raw; }
++				remaining_text += 2;
++			}
++			else { break; }
++		}
++		if (argc == arg) { break; }
++		if (!ignoreQuotes && *remaining_text == '"') {
++			argc++;
++			remaining_text++;
++			while (*remaining_text && *remaining_text != '"') { remaining_text++; }
++			if (!*remaining_text) { return cmd_args_raw; }
++			remaining_text++;
++			continue;
++		}
++		argc++;
++		while (*remaining_text > ' ') {
++			if (!ignoreQuotes && *remaining_text == '"') { break; }
++			if (remaining_text[0] == '/' && remaining_text[1] == '/') { break; }
++			if (remaining_text[0] == '/' && remaining_text[1] == '*') { break; }
++			remaining_text++;
++		}
++		if (!*remaining_text) { return cmd_args_raw; }
++	}
++
++	Q_strncpyz(cmd_args_raw, remaining_text, sizeof(cmd_args_raw));
++	return cmd_args_raw;
++}
++
++/*
++============
+ Cmd_ArgsBuffer
+ 
+ The interpreted versions use this because
+Index: code/qcommon/qcommon.h
+===================================================================
+--- code/qcommon/qcommon.h	(revision 467)
++++ code/qcommon/qcommon.h	(working copy)
+@@ -405,6 +405,7 @@
+ void	Cmd_ArgvBuffer( int arg, char *buffer, int bufferLength );
+ char	*Cmd_Args (void);
+ char	*Cmd_ArgsFrom( int arg );
++char	*Cmd_ArgsFromRaw( int arg );
+ void	Cmd_ArgsBuffer( char *buffer, int bufferLength );
+ char	*Cmd_Cmd (void);
+ void	Cmd_Args_Sanitize( void );

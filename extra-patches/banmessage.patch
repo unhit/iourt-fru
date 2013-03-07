@@ -1,0 +1,14 @@
+Index: code/server/sv_client.c
+===================================================================
+--- code/server/sv_client.c	(revision 427)
++++ code/server/sv_client.c	(working copy)
+@@ -383,6 +383,9 @@
+ 	if ( denied ) {
+ 		// we can't just use VM_ArgPtr, because that is only valid inside a VM_Call
+ 		char *str = VM_ExplicitArgPtr( gvm, denied );
++		if (strcmp("Banned.", str) == 0) {
++			str = "Go away. Banned.";
++		}
+ 
+ 		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", str );
+ 		Com_DPrintf ("Game rejected a connection: %s.\n", str);

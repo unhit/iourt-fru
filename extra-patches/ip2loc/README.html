@@ -1,0 +1,359 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  <head>
+    <title>ip2loc UDP Server</title>
+    <style type="text/css">
+      body
+      {
+        color: black;
+        background-color: white;
+        font-family: sans-serif;
+        margin: 1em 1em 1em 1em;
+      }
+      a { color: blue; text-decoration: underline; }
+      a:hover { color: red; text-decoration: underline; }
+      .comment {
+        color: #cd0000;
+      }
+      .comment-delimiter {
+        color: #cd0000;
+      }
+      .constant {
+        color: #cd00cd;
+      }
+      .keyword
+      {
+        color: #0099cc;
+        font-weight: bold;
+      }
+      .preprocessor
+      {
+        color: #0000cc;
+        font-weight: bold;
+      }
+      .string
+      {
+        color: #dd8800;
+      }
+      .type
+      {
+        color: #009900;
+      }
+      .variable-name
+      {
+        color: #aa8800;
+      }
+      .warning {
+        color: #666666;
+      }
+      .default {
+        color: #000000;
+    </style>
+  </head>
+  <body>
+    <div style="right:0px; top:0px; width:88px; height:31px; position:absolute">
+      <a href="http://validator.w3.org/check?uri=referer">
+
+        <img src="http://www.w3.org/Icons/valid-xhtml10"
+             style="border-style:none"
+             alt="Valid XHTML 1.0!" height="31" width="88" />
+      </a>
+    </div>
+    <br />
+    <h1>ip2loc UDP Server</h1>
+    <hr />
+    <ul>
+      <li><h3><a href="#overview">Section 1: Overview</a></h3></li>
+      <li><h3><a href="#software">Section 2: Getting the Software</a></h3></li>
+      <li><h3><a href="#database">Section 3: Compiling the IP2Location(TM) Database</a></h3></li>
+      <li><h3><a href="#launching">Section 4: Launching the Server Process</a></h3></li>
+      <li><h3><a href="#protocol">Section 5: Protocol Reference</a></h3></li>
+      <li><h3><a href="#php-client">Section 6: PHP Client</a></h3></li>
+    </ul>
+    <br />
+    <p>This software is maintained by Nerius "Rambetter" Landys.  Don't hesitate to contact me at nlandys@gmail.com .</p>
+    <hr /><br />
+    <a name="overview"></a>
+    <h2>Section 1: Overview</h2>
+    <p>
+      This is open source software for running a simple UDP server that provides geolocations for IP addresses.
+      A request packet incoming to the server will contain an IP address, and the response packet outgoing from
+      the server will contain a country code, country name, region, city, latitude, and longitude for the IP address.
+    </p>
+    <p>
+      This software is distributed under a BSD-style license.
+    </p>
+    <p>
+      Here are some selling points of this software:
+    </p>
+    <ul>
+      <li>Compiles and runs on UNIX systems (FreeBSD, Linux, and MacOSX have been tested).</li>
+      <li>It is extremely simple in design.  It runs on the command-line, in the foreground (no forking).
+        A single configuration file is needed for setting a password.  There are no external software dependencies
+        (no database server required).</li>
+      <li>The algorithm used to look up locations is extremely efficient and probably cannot be optimized any
+        further.  The server has been tested to successfully serve well over 100,000 requests per second.</li>
+      <li>Utilizes 2 cores of a CPU.  One thread reads incoming packets and does some minimal processing, throwing
+        away packets that are not valid.
+        A second thread parses valid packets, does lookups, and sends responses.</li>
+      <li>Because of the dual-threaded design, the server is not easily vulnerable to packet flood attacks.</li>
+      <li>Uses almost 0% CPU when idle.</li>
+      <li>Consumes a constant amount of memory: about 25 megabytes of RAM.</li>
+    </ul>
+    <p>Drawbacks of using this software:</p>
+    <ul>
+      <li>UDP is an unreliable protocol.  Packets may be lost on the network with no error reporting.  Other
+        network-related problems may surface.
+      </li>
+      <li>
+        The server uses proprietary IP-to-location data that is sold by IP2Location(TM).  You need to
+        acquire a copy of this data via [hopefully] legal means.  See <a href="#database">Section 3</a>.
+      </li>
+      <li>
+        The ip2loc server does not run on Windows, but who cares, right?
+      </li>
+    </ul>
+    <p>Please refer to the <a href="#protocol">protocol</a> for an explanation of the functionality that this server
+      has to offer.</p>
+    <hr /><br />
+    <a name="software"></a>
+    <h2>Section 2: Getting the Software</h2>
+    <p>To get the source code and documentation for the ip2loc server:</p>
+    <blockquote><pre width="80" style="background: #CCCCCC; padding: 2mm; border-style: ridge">rambetter@porky% <b>svn checkout svn://svn.clanwtf.net/repos/ip2loc ./ip2loc</b>
+</pre></blockquote>
+    <p>The most recent version of this HTML document that you are now reading is available as
+      <code>./ip2loc/README.html</code> .
+    </p>
+    <p>Once you have the source code downloaded, the next step is to compile:</p>
+    <blockquote><pre width="80" style="background: #CCCCCC; padding: 2mm; border-style: ridge">rambetter@porky% <b>cd ./ip2loc/server/</b>
+rambetter@porky% <b>make</b>
+</pre></blockquote>
+    <p>This will generate two executables, <code>ip2loc-server</code> and <code>ip2loc-csv-parser</code> .  You
+      will need both of these programs.
+    </p>
+    <hr /><br />
+    <a name="database"></a>
+    <h2>Section 3: Compiling the IP2Location(TM) Database</h2>
+    <p>
+      To run the ip2loc server, you need to get your hands on some proprietary data that is provided by
+      the company IP2Location(TM).  The exact product that you need from them is DB5
+      (<a href="http://www.ip2location.com/ip-country-region-city-latitude-longitude.aspx">link here</a>).
+    </p>
+    <p>DB5 is downloaded as a ZIP archive named <code>IP-COUNTRY-REGION-CITY-LATITUDE-LONGITUDE-FULL.ZIP</code> .
+      Inside this archive is a file named <code>IP-COUNTRY-REGION-CITY-LATITUDE-LONGITUDE.CSV</code> .  This
+      CSV file is the only file that we need.  Uncompressed, the CSV file is approximately 250 megabytes in size.
+      Fortunately, it is a file consisting of plain text, and it compresses pretty well (the ZIP file distributable
+      is just under 40 megabytes in size).
+    </p>
+    <p>The IP2Location(TM) proprietary IP-to-location data is updated once a month, at the beginning of each month.
+      Usually, you buy a one-year subscription to DB5 for about $350, then download the updated data at the beginning
+      of each month from IP2Location(TM).
+    </p>
+    <p>Note that it is possible to find this IP2Location(TM) DB5 product using torrents.  However, acquiring the
+      proprietary data in this fashion is not lawful and such activity is not endorsed by the author.
+    </p>
+    <p>We now need to "compile" the <code>IP-COUNTRY-REGION-CITY-LATITUDE-LONGITUDE.CSV</code> file into a much more
+      compact custom format that is needed to run the ip2loc server.  To do this, we use the
+      <code>ip2loc-csv-parser</code> command.  This command is very simple: it takes no command-line arguments,
+      reads the CSV file from standard input, and writes a compiled version of the database to standard output.
+      Any parsing errors are displayed on standard error.  Usually, you'll want to save the compiled
+      IP-to-location database to a file named <code>ip2loc.bin</code> .  To sum up, we run a command such as this:
+    </p>
+    <blockquote><pre width="102" style="background: #CCCCCC; padding: 2mm; border-style: ridge">rambetter@porky% <b>cat IP-COUNTRY-REGION-CITY-LATITUDE-LONGITUDE.CSV | ./ip2loc-csv-parser > ip2loc.bin</b>
+</pre></blockquote>
+    <p>The generated <code>ip2loc.bin</code> file will be about 20 megabytes in size.  You will need this file to
+      run the ip2loc server, so keep it handy.  The <code>ip2loc.bin</code> file compresses to about 10 megabytes using
+      standard compression tools such as <code>gzip</code> .  You may consider storing it compressed if disk usage is
+      an issue, in which case you'll want to <code>gunzip</code> the file on-the-fly when you need to use it later on.
+    </p>
+    <hr /><br />
+    <a name="launching"></a>
+    <h2>Section 4: Launching the Server Process</h2>
+    <p>The executable to launch the server process is <code>ip2loc-server</code> .  You can run
+      this binary with no arguments to get a better idea of how to use it:
+    </p>
+    <blockquote><pre width="80" style="background: #CCCCCC; padding: 2mm; border-style: ridge">rambetter@porky% <b>./ip2loc-server</b>
+Usage:
+  ./ip2loc-server &lt;listen-port&gt; &lt;listen-IP&gt;
+The second argument, the IP address to listen on, can be omitted, in which
+case the server will listen on all available interfaces.  This program reads
+standard input, which should be the contents of an "ip2loc.bin" file.  A
+file in the current directory named ".password" will be read, which should
+consist of a single line of text specifying the password that the server will
+be protected by.
+</pre></blockquote>
+    <p>The server actually only listens on IPv4 addresses.  Listening on IPv6 interfaces is not yet supported.
+      So, to run the server, we'll do something like this:</p>
+    <blockquote><pre width="80" style="background: #CCCCCC; padding: 2mm; border-style: ridge">rambetter@porky% <b>echo "pa55w0rd" > .password</b>
+rambetter@porky% <b>cat ip2loc.bin | ./ip2loc-server 10020 127.0.0.1</b>
+</pre></blockquote>
+    <p>Note that the server process runs in the foreground.  If you want to launch the server in your shell and
+      then leave the server running after logging out of your shell,
+      you'll need to either use a tool such as <code>screen</code>
+      or use a utility such as <code>/usr/sbin/daemon</code> on FreeBSD to launch the server process.  Also, you
+      probably want to pipe standard error to a log file.  Nothing on standard out will be generated by the server
+      program.
+    </p>
+    <hr /><br />
+    <a name="protocol"></a>
+    <h2>Section 5: Protocol Reference</h2>
+    <p>This section describes the communication over network UDP that happens with the ip2loc server.</p>
+    <p>The country code, country, region, and city strings will always consist of ASCII text (punctuation characters such as commas
+      may be present).  These strings will never contain the double quote character '&quot;' or the newline character '\n'.  Also,
+      no lowercase letters ('a' through 'z') will be present in the strings.
+    </p>
+    <br />
+    <h3>getLocationForIP</h3>
+    <p>A request to the ip2loc server looks like this (over UDP):</p>
+    <blockquote><pre width="80" style="background: #FFCCCC; padding: 2mm; border-style: ridge">ip2locRequest
+pa55w0rd
+getLocationForIP:0e7baf16
+64.156.193.115
+</pre></blockquote>
+    <p>The lines of text in the request are separated by a single newline character.  There must be a trailing newline
+      after the packet.  The second line must match the contents of the <code>.password</code> file exactly, and the last
+      line is the IP address to be queried.</p>
+    <p>In the example above, the third line contains what is called a challenge field.  This is the colon followed by the
+      string "0e7baf16".  Including a challenge in the request is optional; that is, the colon and everything coming after it
+      can be omitted from the request.  If the challenge is included, it must be a string consisting of exactly 8 characters,
+      and each character must be between a digit or a lowercase letter between 'a' and 'f'.  In essence, the challenge
+      is a 32 bit field represented in hexadecimal format.  If the challenge is included in the request, it will be
+      echoed back in the response.  The purpose of the challenge is to ensure that a response really came from the server
+      and was not just a spoofed packet coming from some random location on the internet.
+    </p>
+    <p>A response looks like this:</p>
+    <blockquote><pre width="80" style="background: #CCFFCC; padding: 2mm; border-style: ridge">ip2locResponse
+getLocationForIP:0e7baf16
+64.156.193.115
+
+US
+UNITED STATES
+CALIFORNIA
+SAN DIEGO
+32.7473
+-117.148
+</pre></blockquote>
+    <p>Here, "US" is the country code, "UNITED STATES" is the country, "CALIFORNIA" is the region, and "SAN DIEGO" is the city.
+      The second to last line is the latitude and the last line is the longitude.  It may happen that some of the values for
+      country code, country, region, and city will not be present.  If that is the case, they will appear as blank lines.  The lines
+      of the response packet are separated by a single newline character.
+      The last line is terminated by a newline character.</p>
+    <p>Because our sample request contained a challenge, the response has a challenge also.  This is the string "0e7baf16" after the
+      colon on the second line of the response.  The challenge in the response will equal to the challenge in the request.  If no challenge
+      was present in the request, no challenge field will appear in the response (the ':' character plus everything after it will be missing).
+    </p>
+    <p>If the password is incorrect or if the request packet is malformed in some other way, the server will
+      silently drop the packet without sending a response of any kind.
+    </p>
+    <br />
+    <h3>getLocationForIP (Quake III version)</h3>
+    <p>A request to the ip2loc server looks like this (over UDP):</p>
+    <blockquote><pre width="80" style="background: #FFCCCC; padding: 2mm; border-style: ridge"><del><b>@@@@</b></del>ip2locRequest
+pa55w0rd
+getLocationForIP:499a02ec
+64.156.193.115
+</pre></blockquote>
+    <p><code><del><b>@@@@</b></del></code> is the 4 byte quantity consisting of all 1 bits (0xffffffff).
+    </p>
+    <p>If the request is well-formed and if the password is correct, the server will respond with a UDP packet
+      that looks like this:</p>
+    <blockquote><pre width="131" style="background: #CCFFCC; padding: 2mm; border-style: ridge"><del><b>@@@@</b></del>ip2LocResponse "getLocationForIP:499a02ec" "64.156.193.115" "US" "UNITED STATES" "CALIFORNIA" "SAN DIEGO" "32.7473" "-117.148"
+</pre></blockquote>
+    <p>The response does <i>not</i> have a trailing newline.  The challenge field is optional (see example above).</p>
+    <br />
+    <h3>quit</h3>
+    <p>You can shut down the ip2loc server process by sending a "quit" request.  However, this request must be
+      sent from the loopback (127.0.0.1) address.  If the ip2loc server is not listening on the loopback interface,
+      the packet must be sent from the same IP address that the server process is listening on.</p>
+    <blockquote><pre width="80" style="background: #FFCCCC; padding: 2mm; border-style: ridge">ip2locRequest
+pa55w0rd
+quit
+</pre></blockquote>
+    <p>No response is returned for this type of packet.  A challenge field may be present after the "quit" command, but it serves no purpose.</p>
+    <hr /><br />
+    <a name="php-client"></a>
+    <h2>Section 6: PHP Client</h2>
+    <p>A PHP client library is available for communicating with the ip2loc server.  After you check out the ip2loc source code from SVN as described
+      in <a href="#software">Section 2</a>, the PHP client library will be located in file <tt>./ip2loc/client/php/ip2loc.php</tt> .
+      There are some PHP test scripts that demonstrate usage of the PHP client library in the same directory as <tt>ip2loc.php</tt> .
+      A bare minimum PHP example without any error checking would look like this:
+    </p>
+    <blockquote><pre width="80" style="background: #EEEEEE; padding: 2mm; border-style: ridge"><span class="preprocessor">&lt;?php</span>
+
+<span class="keyword">require_once</span> <span class="string">"ip2loc.php"</span>;
+
+$<span class="variable-name">ip</span> = <span class="string">"99.50.206.241"</span>; 
+$<span class="variable-name">ip2loc</span> = <span class="keyword">new</span> <span class="type">ip2loc</span>(<span class="string">"pa55w0rd"</span>, <span class="string">"localhost"</span>, <span class="default">10020</span>);
+$<span class="variable-name">locations</span> = $<span class="variable-name">ip2loc</span>-&gt;<span class="default">get_locations</span>(<span class="default">array(</span>$<span class="variable-name">ip</span>));
+$<span class="variable-name">ip2loc</span>-&gt;<span class="default">close</span>();
+<span class="keyword">echo</span> $<span class="variable-name">ip</span> . <span class="string">" is from "</span> . $<span class="variable-name">locations</span>[$<span class="variable-name">ip</span>]-&gt;<span class="default">country</span>() . <span class="string">"\n"</span>;
+
+<span class="preprocessor">?&gt;</span>
+</pre>
+    </blockquote>
+    <p>
+      In practice, however, you would want to write slightly more code to perform some error checking.
+      Let's take an example.  Suppose you are running forums software such as phpBB or Simple Machines Forum (SMF).
+      Suppose you've been getting lots of spam from Russia and China.  You would like to block any activity
+      from these two countries to any part of your website.  First, create a file named <tt>ip2loc-connect-info.php</tt>
+      and put that into one of your PHP includes directories.  (I like to keep this sensitive information in a location
+      away from the webroot for security reasons.)  The contents of <tt>ip2loc-connect-info.php</tt> will be the
+      following:
+    </p>
+    <blockquote><pre width="80" style="background: #EEEEEE; padding: 2mm; border-style: ridge"><span class="preprocessor">&lt;?php</span>
+
+<span class="default">define(</span><span class="string">"IP2LOC_SERV_PASSWORD"</span>, <span class="string">"pa55w0rd"</span>);
+<span class="default">define(</span><span class="string">"IP2LOC_SERV_ADDRESS"</span>, <span class="string">"localhost"</span>);
+<span class="default">define(</span><span class="string">"IP2LOC_SERV_PORT"</span>, <span class="default">10020</span>);
+<span class="default">define(</span><span class="string">"IP2LOC_TIMEOUT"</span>, <span class="default">200</span>);
+<span class="default">define(</span><span class="string">"IP2LOC_RETRIES"</span>, <span class="default">1</span>);
+
+<span class="preprocessor">?&gt;</span>
+</pre>
+    </blockquote>
+    <p>
+      Then, you should find a file that is included at the start of every webpage that a user can hit on your website.
+      In the case of phpBB, such a file is <tt>common.php</tt> in webroot.  In the case of SMF 1.1.x, such a file is
+      <tt>index.php</tt> in webroot.  At the very top of such a file, you can add PHP code such as the following.
+      Bear in mind that this code should be executed before any data is written to the client because the function
+      <tt>header()</tt> writes an HTTP header to the client, and a header can't be changed once data in the body of
+      the HTTP response is written.
+    </p>
+    <blockquote><pre width="100" style="background: #EEEEEE; padding: 2mm; border-style: ridge"><span class="keyword">require_once</span> <span class="string">"ip2loc.php"</span>;
+<span class="keyword">require_once</span> <span class="string">"ip2loc-connect-info.php"</span>;
+
+$<span class="variable-name">client_ip</span> = $<span class="constant">_SERVER</span>[<span class="string">"REMOTE_ADDR"</span>];
+<span class="keyword">while</span> (<span class="constant">TRUE</span>) { <span class="comment-delimiter">// </span><span class="comment">Provide break structure.
+</span>  $<span class="variable-name">ip2loc</span> = <span class="constant">NULL</span>;
+  <span class="keyword">try</span> { $<span class="variable-name">ip2loc</span> = <span class="keyword">new</span> <span class="type">ip2loc</span>(<span class="warning">IP2LOC_SERV_PASSWORD</span>, <span class="warning">IP2LOC_SERV_ADDRESS</span>,
+                             <span class="warning">IP2LOC_SERV_PORT</span>, <span class="warning">IP2LOC_TIMEOUT</span>, <span class="warning">IP2LOC_RETRIES</span>); }
+  <span class="keyword">catch</span> (<span class="type">Exception</span> $<span class="variable-name">e</span>) { <span class="keyword">break</span>; } <span class="comment-delimiter">// </span><span class="comment">Don't prevent website access due to misconfigured ip2loc.
+</span>  $<span class="variable-name">locations</span> = <span class="constant">NULL</span>;
+  <span class="keyword">try</span> { $<span class="variable-name">locations</span> = $<span class="variable-name">ip2loc</span>-&gt;<span class="default">get_locations</span>(<span class="default">array(</span>$<span class="variable-name">client_ip</span>)); }
+  <span class="keyword">catch</span> (<span class="type">Exception</span> $<span class="variable-name">e</span>) {}  <span class="comment-delimiter">// </span><span class="comment">$locations will remain NULL.
+</span>  $<span class="variable-name">ip2loc</span>-&gt;<span class="default">close</span>();
+  <span class="keyword">if</span> ($<span class="variable-name">locations</span> === <span class="constant">NULL</span>) { <span class="keyword">break</span>; }  <span class="comment-delimiter">// </span><span class="comment">Don't prevent website access due to misconfigured ip2loc.
+</span>  $<span class="variable-name">location</span> = $<span class="variable-name">locations</span>[$<span class="variable-name">client_ip</span>];
+  <span class="keyword">if</span> ($<span class="variable-name">location</span> !== <span class="constant">NULL</span>) {
+    $<span class="variable-name">banned_countries</span> = <span class="default">array(</span><span class="string">"RU"</span>, <span class="comment-delimiter">// </span><span class="comment">Russia
+</span>                              <span class="string">"CN"</span>); <span class="comment-delimiter">// </span><span class="comment">China
+</span>    <span class="keyword">for</span> ($<span class="variable-name">inx</span> = <span class="default">count(</span>$<span class="variable-name">banned_countries</span>) - <span class="default">1</span>; $<span class="variable-name">inx</span> &gt;= <span class="default">0</span>; $<span class="variable-name">inx</span>--) {
+      <span class="keyword">if</span> (<span class="default">strcmp(</span>$<span class="variable-name">location</span>-&gt;<span class="default">country_code</span>(), $<span class="variable-name">banned_countries</span>[$<span class="variable-name">inx</span>]) === <span class="default">0</span>) {
+        <span class="default">header(</span><span class="string">"Location: /banned.html"</span>);
+        <span class="keyword">exit</span>;
+      }
+    }
+  }
+  <span class="keyword">break</span>;
+}
+</pre>
+    </blockquote>
+    <p>
+      At the end of this script, the PHP page redirects the client to
+      <tt>banned.html</tt> in webroot.  You should create such a page with
+      a message stating why they are banned.
+    </p>
+    <br /><br />
+  </body>
+</html>

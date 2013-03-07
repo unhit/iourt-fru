@@ -1,0 +1,85 @@
+Index: code/server/sv_client.c
+===================================================================
+--- code/server/sv_client.c	(revision 329)
++++ code/server/sv_client.c	(working copy)
+@@ -1150,6 +1150,11 @@
+ 			} else if (cl->rate > 90000) {
+ 				cl->rate = 90000;
+ 			}
++			if (cl->rate < sv_minRate->integer) {
++				cl->rate = sv_minRate->integer;
++			} else if (sv_maxRate->integer > 0 && cl->rate > sv_maxRate->integer) {
++				cl->rate = sv_maxRate->integer;
++			}
+ 		} else {
+ 			cl->rate = 3000;
+ 		}
+@@ -1163,18 +1168,7 @@
+ 	}
+ 
+ 	// snaps command
+-	val = Info_ValueForKey (cl->userinfo, "snaps");
+-	if (strlen(val)) {
+-		i = atoi(val);
+-		if ( i < 1 ) {
+-			i = 1;
+-		} else if ( i > sv_fps->integer ) {
+-			i = sv_fps->integer;
+-		}
+-		cl->snapshotMsec = 1000/i;
+-	} else {
+-		cl->snapshotMsec = 50;
+-	}
++	cl->snapshotMsec = 1000 / sv_fps->integer;
+ 	
+ 	// TTimo
+ 	// maintain the IP information
+Index: code/server/server.h
+===================================================================
+--- code/server/server.h	(revision 329)
++++ code/server/server.h	(working copy)
+@@ -232,6 +232,7 @@
+ #define	MAX_MASTER_SERVERS	5
+ 
+ extern	cvar_t	*sv_fps;
++extern	cvar_t	*sv_fps_forced;
+ extern	cvar_t	*sv_timeout;
+ extern	cvar_t	*sv_zombietime;
+ extern	cvar_t	*sv_rconPassword;
+Index: code/server/sv_init.c
+===================================================================
+--- code/server/sv_init.c	(revision 329)
++++ code/server/sv_init.c	(working copy)
+@@ -660,6 +660,7 @@
+ 	sv_rconPassword = Cvar_Get ("rconPassword", "", CVAR_TEMP );
+ 	sv_privatePassword = Cvar_Get ("sv_privatePassword", "", CVAR_TEMP );
+ 	sv_fps = Cvar_Get ("sv_fps", "20", CVAR_TEMP );
++	sv_fps_forced = Cvar_Get ("sv_fps_forced", "20", CVAR_TEMP );
+ 	sv_timeout = Cvar_Get ("sv_timeout", "200", CVAR_TEMP );
+ 	sv_zombietime = Cvar_Get ("sv_zombietime", "2", CVAR_TEMP );
+ 	Cvar_Get ("nextmap", "", CVAR_TEMP );
+Index: code/server/sv_main.c
+===================================================================
+--- code/server/sv_main.c	(revision 329)
++++ code/server/sv_main.c	(working copy)
+@@ -27,6 +27,7 @@
+ vm_t			*gvm = NULL;				// game virtual machine
+ 
+ cvar_t	*sv_fps;				// time rate for running non-clients
++cvar_t	*sv_fps_forced;				// UrT likes resetting fps
+ cvar_t	*sv_timeout;			// seconds without any message
+ cvar_t	*sv_zombietime;			// seconds to sink messages after disconnect
+ cvar_t	*sv_rconPassword;		// password for remote server commands
+@@ -788,6 +789,12 @@
+ 		return;
+ 	}
+ 
++	if (sv_fps->integer != sv_fps_forced->integer) {
++		//Cvar_Set( "sv_fps", sv_fps_forced->string );
++		// The above commented out line results in a "^3WARNING: sv_fps must be 20" on every frame.
++		sv_fps->integer = sv_fps_forced->integer; // Cough, cough, so dirty
++	}
++
+ 	// allow pause if only the local client is connected
+ 	if ( SV_CheckPaused() ) {
+ 		return;
